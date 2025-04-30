@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Topic - Forum</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans" style="font-family: 'Inter', sans-serif;">
+  <header class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold text-gray-800">Topic</h1>
+    <nav>
+      <a href="index.html" class="text-blue-600 hover:underline mr-4">Home</a>
+      <a href="login.html" class="text-blue-600 hover:underline" id="logoutLink">Logout</a>
+    </nav>
+  </header>
+  <main class="max-w-4xl mx-auto p-4 bg-white rounded shadow">
+    <article id="post" class="mb-8">
+      <!-- Post content will be loaded here -->
+    </article>
+  <section id="commentsSection">
+    <h2 class="text-xl font-semibold mb-4">Comments</h2>
+    <div id="comments" class="space-y-4 mb-6">
+      <!-- Comments will be loaded here -->
+    </div>
+    <form id="commentForm" class="space-y-4">
+      <input type="hidden" id="parentId" value="" />
+      <textarea id="commentContent" rows="4" placeholder="Add a comment..." required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+      <button type="submit" class="bg-blue-600 text-white py-2 px-6 rounded hover:bg-blue-700 transition">Post Comment</button>
+      <p id="errorMsg" class="text-red-600 mt-2 hidden"></p>
+      <p id="successMsg" class="text-green-600 mt-2 hidden"></p>
+    </form>
+  </section>
+  </main>
+
+  <script>
+    const postEl = document.getElementById('post');
+    const commentsEl = document.getElementById('comments');
+    const commentForm = document.getElementById('commentForm');
+    const commentContent = document.getElementById('commentContent');
+    const parentIdInput = document.getElementById('parentId');
+    const errorMsg = document.getElementById('errorMsg');
+    const successMsg = document.getElementById('successMsg');
+    const logoutLink = document.getElementById('logoutLink');
+
+    // Get post ID from URL query string
+    const urlParams = new URLSearchParams(window.location.search);
+    const postId = urlParams.get('id');
+
+    // Redirect to home if no post ID
+    if (!postId) {
+      window.location.href = 'index.html';
+    }
+
+    // Fetch post data
+    async function fetchPost() {
+      try {
+        const res = await fetch('/api/posts/' + postId);
+        if (!res.ok) {
+          postEl.innerHTML = '<p class="text-red-600">Post not found.</p>';
+          return;
+        }
+        const post = await res.json();
+        postEl.innerHTML = `
+          <h2 class="text-2xl font-bold mb-2">${post.title} <span class="text-sm font-normal text-gray-600">(${post.votes || 0} votes)</span></h2>
+          <p class="text-gray-700 mb-4">${post.content}</p>
+          <p class="text-gray-500 text-sm">By ${post.username} on ${new Date(post.createdAt).toLocaleString()}</p>
+          <div class="mt-2 space-x-2">
+            <button onclick="votePost(1)" class="text-green-600 hover:text-green-800"><i class="fas fa-thumbs-up"></i> Upvote</button>
+            <button onclick="votePost(-1)" class="text-red-600 hover:text-red-800"><i class="fas fa-thumbs-down"></i> Downvote</button>
+          </div>
+        `;
+        loadComments(post.comments);
+      } catch (error) {
+        postEl.innerHTML = '<p class="text-red-600">Error loading post.</p>';
+      }
+    }
+
+    // Load comments recursively with replies and voting
+    function loadComments(comments, container = commentsEl, level = 0) {
+      container.innerHTML = '';
+      if (!comments || comments.length === 0) {
+        container.innerHTML = '<p class="text-gray-600">No comments yet.</p>';
+        return;
+      }
+      comments.forEach(comment => {
+        const commentEl = document.createElement('div');
+        commentEl.className = 'border border-gray-300 rounded p-3 mb-2';
+        commentEl.style.marginLeft = level * 20 + 'px';
+        commentEl.innerHTML = `
+          <p class="text-gray-800">${comment.content}</p>
+          <p class="text-gray-500 text-sm mt-1">By ${comment.username} on ${new Date(comment.createdAt).toLocaleString()} <span class="ml-2">(${comment.votes || 0} votes)</span></p>
+          <div class="mt-1 space-x-2">
+            <button onclick="voteComment(${comment.id}, 1)" class="text-green-600 hover:text-green-800"><i class="fas fa-thumbs-up"></i> Upvote</button>
+            <button onclick="voteComment(${comment.id}, -1)" class="text-red-600 hover:text-red-800"><i class="fas fa-thumbs-down"></i> Downvote</button>
+            <button onclick="replyToComment(${comment.id})" class="text-blue-600 hover:underline">Reply</button>
+          </div>
+          <div id="replies-${comment.id}" class="mt-2"></div>
+        `;
+        container.appendChild(commentEl);
+        if (comment.replies && comment.replies.length > 0) {
+          const repliesContainer = document.getElementById('replies-' + comment.id);
+          loadComments(comment.replies, repliesContainer, level + 1);
+        }
+      });
+    }
+
+    // Redirect to login if not authenticated
+    const token = localStorage.getItem('token');
+    if (!token) {
+      commentForm.style.display = 'none';
+    }
+
+    logoutLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      localStorage.removeItem('token');
+      window.location.href = 'login.html';
+    });
+
+    // Handle comment form submission
+    commentForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorMsg.classList.add('hidden');
+      successMsg.classList.add('hidden');
+      const content = commentContent.value.trim();
+      if (!content) return;
+
+      try {
+        const res = await fetch('/api/posts/' + postId + '/comments', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ content, parentId: parentIdInput.value || null }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorMsg.textContent = data.message || 'Failed to post comment';
+          errorMsg.classList.remove('hidden');
+          return;
+        }
+        successMsg.textContent = 'Comment posted successfully!';
+        successMsg.classList.remove('hidden');
+        commentContent.value = '';
+        parentIdInput.value = '';
+        // Reload post to update comments
+        fetchPost();
+      } catch (error) {
+        errorMsg.textContent = 'An error occurred. Please try again.';
+        errorMsg.classList.remove('hidden');
+      }
+    });
+
+    // Vote on post
+    async function votePost(vote) {
+      try {
+        const res = await fetch('/api/vote', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ postId, vote }),
+        });
+        if (res.ok) {
+          fetchPost();
+        }
+      } catch (error) {
+        console.error('Error voting post:', error);
+      }
+    }
+
+    // Vote on comment
+    async function voteComment(commentId, vote) {
+      try {
+        const res = await fetch('/api/vote', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ postId, commentId, vote }),
+        });
+        if (res.ok) {
+          fetchPost();
+        }
+      } catch (error) {
+        console.error('Error voting comment:', error);
+      }
+    }
+
+    // Reply to comment
+    function replyToComment(commentId) {
+      parentIdInput.value = commentId;
+      commentContent.focus();
+    }
+
+    fetchPost();
+  </script>
+</body>
+</html>

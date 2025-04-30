@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Register - Forum</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans" style="font-family: 'Inter', sans-serif;">
+  <div class="min-h-screen flex items-center justify-center">
+    <div class="bg-white p-8 rounded shadow-md w-full max-w-md">
+      <h1 class="text-2xl font-bold mb-6 text-center">KomunitasLokal - Register</h1>
+      <form id="registerForm" class="space-y-4">
+        <div>
+          <label for="username" class="block text-gray-700">Username</label>
+          <input type="text" id="username" name="username" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label for="password" class="block text-gray-700">Password</label>
+          <input type="password" id="password" name="password" required class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">Register</button>
+      </form>
+      <p class="mt-4 text-center text-gray-600">
+        Already have an account? <a href="login.html" class="text-blue-600 hover:underline">Login</a>
+      </p>
+      <p id="errorMsg" class="text-red-600 mt-4 text-center hidden"></p>
+      <p id="successMsg" class="text-green-600 mt-4 text-center hidden"></p>
+    </div>
+  </div>
+
+  <script>
+    const registerForm = document.getElementById('registerForm');
+    const errorMsg = document.getElementById('errorMsg');
+    const successMsg = document.getElementById('successMsg');
+
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorMsg.classList.add('hidden');
+      successMsg.classList.add('hidden');
+      const username = registerForm.username.value.trim();
+      const password = registerForm.password.value.trim();
+
+      try {
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorMsg.textContent = data.message || 'Registration failed';
+          errorMsg.classList.remove('hidden');
+          return;
+        }
+        successMsg.textContent = 'Registration successful! You can now login.';
+        successMsg.classList.remove('hidden');
+        registerForm.reset();
+      } catch (error) {
+        errorMsg.textContent = 'An error occurred. Please try again.';
+        errorMsg.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
